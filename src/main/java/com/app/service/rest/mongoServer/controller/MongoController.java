@@ -35,4 +35,21 @@ public class MongoController {
     public void doDelete(@RequestParam String playerName) {
         daoMongoService.cleanSavedGameMongodb(playerName);
     }
+
+    @RequestMapping("/prepare")
+    public void prepare(@RequestParam String playerName) {
+        if (!daoMongoService.isImageFilePresentInMongoDB(playerName))
+            daoMongoService.prepareMongoDBForNewPLayer(playerName);
+    }
+
+    @RequestMapping("/delete_image")
+    public void doDelete(@RequestParam String playerName, @RequestParam String fileName) {
+        daoMongoService.cleanImageMongodb(playerName, fileName);
+    }
+
+    @RequestMapping("/bytes")
+    public byte[] loadByteArrayFromMongodb(@RequestParam String playerName, @RequestParam String fileName) {
+       return daoMongoService.loadByteArrayFromMongodb(playerName,fileName);
+    }
+
 }
