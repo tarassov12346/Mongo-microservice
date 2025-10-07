@@ -22,7 +22,7 @@ public interface DaoMongoService {
 
     //   void loadSnapShotIntoMongodb(String playerName, String fileName);
 
-    //   void loadMugShotIntoMongodb(String playerName, byte[] data);
+    void loadMugShotIntoMongodb(String playerName, byte[] data);
 
     // void makeDesktopSnapshot(String fileNameDetail, State state, String bestPlayerName, int bestPlayerScore);
 

@@ -49,7 +49,11 @@ public class MongoController {
 
     @RequestMapping("/bytes")
     public byte[] loadByteArrayFromMongodb(@RequestParam String playerName, @RequestParam String fileName) {
-       return daoMongoService.loadByteArrayFromMongodb(playerName,fileName);
+        return daoMongoService.loadByteArrayFromMongodb(playerName, fileName);
     }
 
+    @RequestMapping("/mugShot")
+    public void gameSave(@RequestParam String playerName, @RequestBody byte[] data) {
+        daoMongoService.loadMugShotIntoMongodb(playerName, data);
+    }
 }
