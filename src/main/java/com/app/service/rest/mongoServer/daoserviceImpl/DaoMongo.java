@@ -96,6 +96,37 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
+    public void loadSnapShotIntoMongodb(String playerName, String fileName, byte[] data) {
+        String uri = mongoUri;
+        MongoClient mongoClient = MongoClients.create(uri);
+        MongoDatabase database = mongoClient.getDatabase("shopDB");
+        GridFSBucket gridFSBucket = GridFSBuckets.create(database);
+        GridFSUploadOptions options = new GridFSUploadOptions()
+                .chunkSizeBytes(1048576)
+                .metadata(new Document("type", "jpg"));
+        try (GridFSUploadStream uploadStream = gridFSBucket.openUploadStream(playerName + fileName + ".jpg", options)) {
+            // Writes file data to the GridFS upload stream
+            uploadStream.write(data);
+            uploadStream.flush();
+            // Prints the "_id" value of the uploaded file
+            System.out.println("The file id of the uploaded file is: " + uploadStream.getObjectId().toHexString());
+// Prints a message if any exceptions occur during the upload process
+        } catch (Exception e) {
+            System.err.println("The file upload failed: " + e);
+        }
+        Bson query = Filters.eq("metadata.type", "jpg");
+        Bson sort = Sorts.ascending("filename");
+// Retrieves 5 documents in the bucket that match the filter and prints metadata
+        gridFSBucket.find(query)
+                .sort(sort)
+                .limit(5)
+                .forEach(gridFSFile -> System.out.println(gridFSFile));
+        // Now you can work with the 'database' object to perform CRUD operations.
+        // Don't forget to close the MongoClient when you're done.
+        mongoClient.close();
+    }
+
+    @Override
     public void loadMugShotIntoMongodb(String playerName, byte[] data) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);

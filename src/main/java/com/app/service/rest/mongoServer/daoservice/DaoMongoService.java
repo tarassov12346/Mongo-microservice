@@ -20,7 +20,7 @@ public interface DaoMongoService {
 
     SavedGame loadSavedGameFromMongodb(String playerName);
 
-    //   void loadSnapShotIntoMongodb(String playerName, String fileName);
+    void loadSnapShotIntoMongodb(String playerName, String fileName, byte[] data);
 
     void loadMugShotIntoMongodb(String playerName, byte[] data);
 

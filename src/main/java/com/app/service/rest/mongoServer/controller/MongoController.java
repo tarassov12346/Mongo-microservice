@@ -32,7 +32,7 @@ public class MongoController {
     }
 
     @RequestMapping("/delete")
-    public void doDelete(@RequestParam String playerName) {
+    public void doDeleteGame(@RequestParam String playerName) {
         daoMongoService.cleanSavedGameMongodb(playerName);
     }
 
@@ -43,7 +43,7 @@ public class MongoController {
     }
 
     @RequestMapping("/delete_image")
-    public void doDelete(@RequestParam String playerName, @RequestParam String fileName) {
+    public void doDeleteImage(@RequestParam String playerName, @RequestParam String fileName) {
         daoMongoService.cleanImageMongodb(playerName, fileName);
     }
 
@@ -53,7 +53,12 @@ public class MongoController {
     }
 
     @RequestMapping("/mugShot")
-    public void gameSave(@RequestParam String playerName, @RequestBody byte[] data) {
+    public void mugShotSave(@RequestParam String playerName, @RequestBody byte[] data) {
         daoMongoService.loadMugShotIntoMongodb(playerName, data);
+    }
+
+    @RequestMapping("/snapShot")
+    public void snapShotSave(@RequestParam String playerName, @RequestParam String fileName, @RequestBody byte[] data) {
+        daoMongoService.loadSnapShotIntoMongodb(playerName,fileName,data);
     }
 }
