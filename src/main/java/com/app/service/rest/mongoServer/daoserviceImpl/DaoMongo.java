@@ -1,7 +1,6 @@
 package com.app.service.rest.mongoServer.daoserviceImpl;
 
 import com.app.service.rest.mongoServer.daoservice.DaoMongoService;
-import com.app.service.rest.mongoServer.model.Game;
 import com.app.service.rest.mongoServer.model.SavedGame;
 import com.google.gson.Gson;
 import com.mongodb.BasicDBObject;

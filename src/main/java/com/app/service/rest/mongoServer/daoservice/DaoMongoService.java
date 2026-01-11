@@ -1,10 +1,8 @@
 package com.app.service.rest.mongoServer.daoservice;
 
-import com.app.service.rest.mongoServer.model.Game;
 import com.app.service.rest.mongoServer.model.SavedGame;
 
 public interface DaoMongoService {
-    //   void runMongoServer();
 
     void prepareMongoDBForNewPLayer(String playerName);
 
@@ -23,8 +21,6 @@ public interface DaoMongoService {
     void loadSnapShotIntoMongodb(String playerName, String fileName, byte[] data);
 
     void loadMugShotIntoMongodb(String playerName, byte[] data);
-
-    // void makeDesktopSnapshot(String fileNameDetail, State state, String bestPlayerName, int bestPlayerScore);
 
     byte[] loadByteArrayFromMongodb(String playerName, String fileName);
 }
