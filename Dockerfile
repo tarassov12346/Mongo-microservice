@@ -15,7 +15,12 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 # Копируем собранный jar из первого этапа
-COPY --from=build /app/target/mongo-microservice-1.0-snapshot.jar app.jar
+# Вместо конкретного имени:
+# COPY --from=build /app/target/mongo-microservice-1.0-snapshot.jar app.jar
+
+# Используйте маску (wildcard):
+COPY --from=build /app/target/*.jar app.jar
+
 
 # Создаем директории для статики, указанные в ваших проперти
 RUN mkdir -p /src/main/resources/static/shots /src/main/resources/static/mongoprepareshots
