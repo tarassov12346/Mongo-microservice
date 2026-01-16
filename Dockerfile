@@ -1,32 +1,31 @@
-# Этап 1: Сборка приложения
-FROM maven:3.9.4-eclipse-temurin-17 AS build
+# --- Этап 1: Сборка ---
+FROM maven:3.9.4-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
-# Копируем pom.xml и скачиваем зависимости (кеширование)
+# 1. Кешируем зависимости (используем --mount для экономии места)
 COPY pom.xml .
-RUN mvn dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline
 
-# Копируем исходный код и собираем jar
+# 2. Сборка (также с кешированием .m2)
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests
 
-# Этап 2: Создание финального образа
+# --- Этап 2: Финальный образ ---
+# Используем максимально легкий образ (JRE Alpine)
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Копируем собранный jar из первого этапа
-# Вместо конкретного имени:
-# COPY --from=build /app/target/mongo-microservice-1.0-snapshot.jar app.jar
-
-# Используйте маску (wildcard):
+# Копируем только нужный JAR
 COPY --from=build /app/target/*.jar app.jar
 
+# Создаем директории (объединяем в одну команду для уменьшения слоев)
+RUN mkdir -p /src/main/resources/static/shots /src/main/resources/static/mongoprepareshots \
+    && addgroup -S spring && adduser -S spring -G spring
 
-# Создаем директории для статики, указанные в ваших проперти
-RUN mkdir -p /src/main/resources/static/shots /src/main/resources/static/mongoprepareshots
+# Безопасность: запускаем от не-root пользователя
+USER spring:spring
 
-# Открываем порт сервиса
 EXPOSE 3333
 
-# Запуск приложения
 ENTRYPOINT ["java", "-jar", "app.jar"]
+
