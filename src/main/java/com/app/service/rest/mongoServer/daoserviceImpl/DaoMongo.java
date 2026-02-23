@@ -19,6 +19,8 @@ import com.mongodb.client.model.Sorts;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -36,6 +38,7 @@ public class DaoMongo implements DaoMongoService {
     String mongoUri;
 
     @Override
+    @Cacheable(value = "items_list", key = "#fileName + '_exists'")
     public boolean isSavedGamePresentInMongoDB(String fileName) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);
@@ -45,6 +48,7 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
+    @CacheEvict(value = "items_list", allEntries = true)
     public void cleanImageMongodb(String playerName, String fileName) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);
@@ -68,6 +72,7 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
+    @CacheEvict(value = "items_list", key = "#playerName + '_save'")
     public void loadSavedGameIntoMongodb(SavedGame savedGame, String playerName) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);
@@ -83,6 +88,7 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
+    @Cacheable(value = "items_list", key = "#playerName + '_save'")
     public SavedGame loadSavedGameFromMongodb(String playerName) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);
@@ -157,6 +163,7 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
+    @Cacheable(value = "items_list", key = "#playerName + #fileName + '_img'")
     public byte[] loadByteArrayFromMongodb(String playerName, String fileName) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);
