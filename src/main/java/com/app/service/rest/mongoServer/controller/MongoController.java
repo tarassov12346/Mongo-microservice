@@ -2,6 +2,8 @@ package com.app.service.rest.mongoServer.controller;
 
 import com.app.service.rest.mongoServer.daoservice.DaoMongoService;
 import com.app.service.rest.mongoServer.model.SavedGame;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,8 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
 
+
 @RestController
 public class MongoController {
+
+    // Создаем экземпляр логгера
+    private static final Logger log = LoggerFactory.getLogger(MongoController.class);
 
     @Autowired
     private DaoMongoService daoMongoService;
@@ -26,6 +32,7 @@ public class MongoController {
 
     @RequestMapping("/restart")
     public Optional<SavedGame> gameRestart(@RequestParam String playerName) {
+        log.info("CONTROLLER RESTART для игрока: {}", playerName);
         if (daoMongoService.isSavedGamePresentInMongoDB(playerName + "SavedGame")) {
             return Optional.of(daoMongoService.loadSavedGameFromMongodb(playerName));
         } else return Optional.empty();

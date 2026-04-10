@@ -38,7 +38,7 @@ public class DaoMongo implements DaoMongoService {
     String mongoUri;
 
     @Override
-    @Cacheable(value = "items_list", key = "#fileName + '_exists'")
+ //   @Cacheable(value = "items_list", key = "#fileName + '_exists'") создает прболему с рестартом, не надо!
     public boolean isSavedGamePresentInMongoDB(String fileName) {
         String uri = mongoUri;
         MongoClient mongoClient = MongoClients.create(uri);
