@@ -2,70 +2,76 @@ package com.app.service.rest.mongoServer.controller;
 
 import com.app.service.rest.mongoServer.daoservice.DaoMongoService;
 import com.app.service.rest.mongoServer.model.SavedGame;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 
 @RestController
+@RequiredArgsConstructor
+@Slf4j
 public class MongoController {
 
-    // Создаем экземпляр логгера
-    private static final Logger log = LoggerFactory.getLogger(MongoController.class);
+    private final DaoMongoService daoMongoService;
 
-    @Autowired
-    private DaoMongoService daoMongoService;
-
-    @RequestMapping("/save")
+    @PostMapping("/save")
     public void gameSave(@RequestBody SavedGame savedGame) {
-        if (daoMongoService.isSavedGamePresentInMongoDB(savedGame.getPlayerName() + "SavedGame")) {
-            daoMongoService.cleanSavedGameMongodb(savedGame.getPlayerName());
-        }
-        daoMongoService.loadSavedGameIntoMongodb(savedGame, savedGame.getPlayerName());
+        // Запускаем в виртуальном потоке, чтобы мгновенно освободить HTTP-канал
+        CompletableFuture.runAsync(() -> {
+            String key = savedGame.getPlayerName() + "SavedGame";
+            if (daoMongoService.isSavedGamePresentInMongoDB(key)) {
+                daoMongoService.cleanSavedGameMongodb(savedGame.getPlayerName());
+            }
+            daoMongoService.loadSavedGameIntoMongodb(savedGame, savedGame.getPlayerName());
+        });
     }
 
-    @RequestMapping("/restart")
+    @GetMapping("/restart")
     public Optional<SavedGame> gameRestart(@RequestParam String playerName) {
         log.info("CONTROLLER RESTART для игрока: {}", playerName);
+        // Здесь асинхронность не нужна, так как нам ОБЯЗАТЕЛЬНО нужен результат сейчас
         if (daoMongoService.isSavedGamePresentInMongoDB(playerName + "SavedGame")) {
             return Optional.of(daoMongoService.loadSavedGameFromMongodb(playerName));
-        } else return Optional.empty();
+        }
+        return Optional.empty();
     }
 
-    @RequestMapping("/delete")
+    @DeleteMapping("/delete")
     public void doDeleteGame(@RequestParam String playerName) {
-        daoMongoService.cleanSavedGameMongodb(playerName);
+        CompletableFuture.runAsync(() -> daoMongoService.cleanSavedGameMongodb(playerName));
     }
 
-    @RequestMapping("/prepare")
+    @PostMapping("/prepare")
     public void prepare(@RequestParam String playerName) {
-        if (!daoMongoService.isImageFilePresentInMongoDB(playerName))
-            daoMongoService.prepareMongoDBForNewPLayer(playerName);
+        CompletableFuture.runAsync(() -> {
+            if (!daoMongoService.isImageFilePresentInMongoDB(playerName)) {
+                daoMongoService.prepareMongoDBForNewPLayer(playerName);
+            }
+        });
     }
 
-    @RequestMapping("/delete_image")
+    @DeleteMapping("/delete_image")
     public void doDeleteImage(@RequestParam String playerName, @RequestParam String fileName) {
-        daoMongoService.cleanImageMongodb(playerName, fileName);
+        CompletableFuture.runAsync(() -> daoMongoService.cleanImageMongodb(playerName, fileName));
     }
 
-    @RequestMapping("/bytes")
+    @GetMapping("/bytes")
     public byte[] loadByteArrayFromMongodb(@RequestParam String playerName, @RequestParam String fileName) {
+        // Возвращаем данные синхронно, так как клиент их ждет
         return daoMongoService.loadByteArrayFromMongodb(playerName, fileName);
     }
 
-    @RequestMapping("/mugShot")
+    @PostMapping("/mugShot")
     public void mugShotSave(@RequestParam String playerName, @RequestBody byte[] data) {
-        daoMongoService.loadMugShotIntoMongodb(playerName, data);
+        CompletableFuture.runAsync(() -> daoMongoService.loadMugShotIntoMongodb(playerName, data));
     }
 
-    @RequestMapping("/snapShot")
+    @PostMapping("/snapShot")
     public void snapShotSave(@RequestParam String playerName, @RequestParam String fileName, @RequestBody byte[] data) {
-        daoMongoService.loadSnapShotIntoMongodb(playerName,fileName,data);
+        // Самая тяжелая операция (запись байтов) теперь не тормозит основной сервис
+        CompletableFuture.runAsync(() -> daoMongoService.loadSnapShotIntoMongodb(playerName, fileName, data));
     }
 }

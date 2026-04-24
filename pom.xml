@@ -9,16 +9,21 @@
     <version>1.0-SNAPSHOT</version>
     <name>Mongo-microservice</name>
     <description>Microservice project for Spring Boot</description>
-    <properties>
-        <start-class>com.app.service.rest.mongoServer.MongoServer</start-class>
-    </properties>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.1.1</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <!-- Актуальная версия с поддержкой Java 21 и Loom -->
+        <version>3.4.2</version>
+        <relativePath/>
     </parent>
+
+    <properties>
+        <!-- Обязательно для Virtual Threads -->
+        <java.version>21</java.version>
+        <spring-cloud.version>2024.0.0</spring-cloud.version>
+        <start-class>com.app.service.rest.mongoServer.MongoServer</start-class>
+    </properties>
 
     <dependencies>
         <dependency>
@@ -27,14 +32,13 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-netflix-eureka-server</artifactId>
-            <version>4.3.0</version>
+            <artifactId>spring-cloud-netflix-eureka-client</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-netflix-eureka-client</artifactId>
-            <version>4.3.0</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
@@ -43,7 +47,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.30</version>
+            <version>1.18.34</version>
             <scope>provided</scope>
         </dependency>
 
@@ -79,12 +83,13 @@
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
-                <version>2022.0.3</version>
+                <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
+
 
     <build>
         <plugins>

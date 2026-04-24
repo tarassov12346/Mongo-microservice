@@ -15,7 +15,10 @@ import com.mongodb.client.gridfs.GridFSUploadStream;
 import com.mongodb.client.gridfs.model.GridFSDownloadOptions;
 import com.mongodb.client.gridfs.model.GridFSUploadOptions;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Sorts;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,159 +32,104 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class DaoMongo implements DaoMongoService {
 
-    @Value("${mongoPrepareShotsPath}")
-    String mongoPrepareShotsPath;
+    // Spring Boot автоматически создаст этот бин из spring.data.mongodb.uri
+    private final MongoClient mongoClient;
 
-    @Value("${mongoUri}")
-    String mongoUri;
+    @Value("${mongoPrepareShotsPath}")
+    private String mongoPrepareShotsPath;
+
+    // Централизованный доступ к БД и бакету
+    private MongoDatabase getDatabase() {
+        return mongoClient.getDatabase("shopDB");
+    }
+
+    private GridFSBucket getGridFS() {
+        return GridFSBuckets.create(getDatabase());
+    }
 
     @Override
- //   @Cacheable(value = "items_list", key = "#fileName + '_exists'") создает прболему с рестартом, не надо!
     public boolean isSavedGamePresentInMongoDB(String fileName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        BasicDBObject whereQuery = new BasicDBObject("name", fileName);
-        return database.getCollection("saved_games").find(whereQuery).cursor().hasNext();
+        return getDatabase().getCollection("saved_games")
+                .find(Filters.eq("name", fileName)).first() != null;
     }
 
     @Override
     @CacheEvict(value = "items_list", allEntries = true)
     public void cleanImageMongodb(String playerName, String fileName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        GridFSBucket gridFSBucket = GridFSBuckets.create(database);
-        GridFSFindIterable gridFSFile = gridFSBucket.find(Filters.eq("filename", playerName + fileName + ".jpg"));
-        while (gridFSFile.cursor().hasNext()) {
-            gridFSBucket.delete(gridFSFile.cursor().next().getId());
-        }
-        mongoClient.close();
+        GridFSBucket bucket = getGridFS();
+        bucket.find(Filters.eq("filename", playerName + fileName + ".jpg"))
+                .forEach(file -> bucket.delete(file.getId()));
     }
 
     @Override
     public void cleanSavedGameMongodb(String playerName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        MongoCollection<Document> collection = database.getCollection("saved_games");
-        Bson filter = Filters.eq("name", playerName + "SavedGame");
-        collection.deleteMany(filter);
+        getDatabase().getCollection("saved_games")
+                .deleteMany(Filters.eq("name", playerName + "SavedGame"));
     }
 
     @Override
     @CacheEvict(value = "items_list", key = "#playerName + '_save'")
     public void loadSavedGameIntoMongodb(SavedGame savedGame, String playerName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        MongoCollection<Document> collection = database.getCollection("saved_games");
-        Bson filter = Filters.eq("name", playerName + "SavedGame");
-        collection.deleteMany(filter);
-        Gson gson = new Gson();
-        String json = gson.toJson(savedGame);
-        Document document = Document.parse(json);
-        document.put("name", playerName + "SavedGame");
-        collection.insertOne(document);
+        String key = playerName + "SavedGame";
+        // Вместо удаления и вставки используем replace + upsert (атомарно)
+        Document doc = Document.parse(new Gson().toJson(savedGame));
+        doc.put("name", key);
+
+        getDatabase().getCollection("saved_games").replaceOne(
+                Filters.eq("name", key),
+                doc,
+                new ReplaceOptions().upsert(true)
+        );
     }
 
     @Override
     @Cacheable(value = "items_list", key = "#playerName + '_save'")
     public SavedGame loadSavedGameFromMongodb(String playerName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        MongoCollection<Document> collection = database.getCollection("saved_games");
-        Gson gson = new Gson();
-        Bson filter = Filters.eq("name", playerName + "SavedGame");
-        Document document = collection.find(filter).first();
-        return gson.fromJson(document.toJson(), SavedGame.class);
+        Document doc = getDatabase().getCollection("saved_games")
+                .find(Filters.eq("name", playerName + "SavedGame")).first();
+        return doc != null ? new Gson().fromJson(doc.toJson(), SavedGame.class) : null;
     }
 
     @Override
     public void loadSnapShotIntoMongodb(String playerName, String fileName, byte[] data) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        GridFSBucket gridFSBucket = GridFSBuckets.create(database);
-        GridFSUploadOptions options = new GridFSUploadOptions()
-                .chunkSizeBytes(1048576)
-                .metadata(new Document("type", "jpg"));
-        try (GridFSUploadStream uploadStream = gridFSBucket.openUploadStream(playerName + fileName + ".jpg", options)) {
-            // Writes file data to the GridFS upload stream
-            uploadStream.write(data);
-            uploadStream.flush();
-            // Prints the "_id" value of the uploaded file
-            System.out.println("The file id of the uploaded file is: " + uploadStream.getObjectId().toHexString());
-// Prints a message if any exceptions occur during the upload process
-        } catch (Exception e) {
-            System.err.println("The file upload failed: " + e);
-        }
-        Bson query = Filters.eq("metadata.type", "jpg");
-        Bson sort = Sorts.ascending("filename");
-// Retrieves 5 documents in the bucket that match the filter and prints metadata
-        gridFSBucket.find(query)
-                .sort(sort)
-                .limit(5)
-                .forEach(gridFSFile -> System.out.println(gridFSFile));
-        // Now you can work with the 'database' object to perform CRUD operations.
-        // Don't forget to close the MongoClient when you're done.
-        mongoClient.close();
+        uploadToGridFS(playerName + fileName + ".jpg", data);
     }
 
     @Override
     public void loadMugShotIntoMongodb(String playerName, byte[] data) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        GridFSBucket gridFSBucket = GridFSBuckets.create(database);
+        uploadToGridFS(playerName + ".jpg", data);
+    }
+
+    private void uploadToGridFS(String fullFileName, byte[] data) {
+        // Эта строка покажет, какой поток выполняет тяжелую запись
+        log.info("🚀 Запись в Mongo. Поток: {}", Thread.currentThread());
         GridFSUploadOptions options = new GridFSUploadOptions()
                 .chunkSizeBytes(1048576)
                 .metadata(new Document("type", "jpg"));
-        try (GridFSUploadStream uploadStream = gridFSBucket.openUploadStream(playerName + ".jpg", options)) {
-            // Writes file data to the GridFS upload stream
+
+        try (var uploadStream = getGridFS().openUploadStream(fullFileName, options)) {
             uploadStream.write(data);
-            uploadStream.flush();
-            // Prints the "_id" value of the uploaded file
-            System.out.println("The file id of the uploaded file is: " + uploadStream.getObjectId().toHexString());
-// Prints a message if any exceptions occur during the upload process
+            log.info("📸 Файл {} успешно сохранен. ID: {}", fullFileName, uploadStream.getObjectId());
         } catch (Exception e) {
-            System.err.println("The file upload failed: " + e);
+            log.error("❌ Ошибка загрузки в GridFS: {}", e.getMessage());
         }
-        Bson query = Filters.eq("metadata.type", "jpg");
-        Bson sort = Sorts.ascending("filename");
-// Retrieves 5 documents in the bucket that match the filter and prints metadata
-        gridFSBucket.find(query)
-                .sort(sort)
-                .limit(5)
-                .forEach(gridFSFile -> System.out.println(gridFSFile));
-        // Now you can work with the 'database' object to perform CRUD operations.
-        // Don't forget to close the MongoClient when you're done.
-        mongoClient.close();
     }
 
     @Override
     @Cacheable(value = "items_list", key = "#playerName + #fileName + '_img'")
     public byte[] loadByteArrayFromMongodb(String playerName, String fileName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        GridFSBucket gridFSBucket = GridFSBuckets.create(database);
-        GridFSDownloadOptions downloadOptions = new GridFSDownloadOptions().revision(0);
-        byte[] imagenEnBytes = new byte[16384];
-// Downloads a file to an output stream
-        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
-            if (fileName.equals("mugShot")) gridFSBucket.downloadToStream(playerName + ".jpg", buffer, downloadOptions);
-            else gridFSBucket.downloadToStream(playerName + fileName + ".jpg", buffer, downloadOptions);
-            imagenEnBytes = buffer.toByteArray();
-            buffer.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
+        String finalName = fileName.equals("mugShot") ? playerName + ".jpg" : playerName + fileName + ".jpg";
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            getGridFS().downloadToStream(finalName, bos);
+            return bos.toByteArray();
+        } catch (Exception e) {
+            log.error("❌ Ошибка скачивания {}: {}", finalName, e.getMessage());
+            return new byte[0];
         }
-        mongoClient.close();
-        return imagenEnBytes;
     }
 
     @Override
@@ -193,48 +141,17 @@ public class DaoMongo implements DaoMongoService {
 
     @Override
     public boolean isImageFilePresentInMongoDB(String fileName) {
-        String uri = mongoUri;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        BasicDBObject whereQuery = new BasicDBObject();
-        whereQuery.put("filename", fileName + ".jpg");
-        return database.getCollection("fs.files").find(whereQuery).cursor().hasNext();
+        return getDatabase().getCollection("fs.files")
+                .find(Filters.eq("filename", fileName + ".jpg")).first() != null;
     }
 
     private void fillMongoDB(String fileNameOnPC, String fileNameINDB) {
-        String uri = mongoUri;
-        String pathToImageMongoPreparedShots = System.getProperty("user.dir") + mongoPrepareShotsPath;
-        MongoClient mongoClient = MongoClients.create(uri);
-        MongoDatabase database = mongoClient.getDatabase("shopDB");
-        GridFSBucket gridFSBucket = GridFSBuckets.create(database);
-        byte[] data = new byte[0];
+        Path path = Path.of(System.getProperty("user.dir"), mongoPrepareShotsPath, fileNameOnPC + ".jpg");
         try {
-            data = Files.readAllBytes(Path.of(pathToImageMongoPreparedShots + fileNameOnPC + ".jpg"));
+            byte[] data = Files.readAllBytes(path);
+            uploadToGridFS(fileNameINDB + ".jpg", data);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("❌ Ошибка чтения исходного файла {}: {}", path, e.getMessage());
         }
-        GridFSUploadOptions options = new GridFSUploadOptions()
-                .chunkSizeBytes(1048576)
-                .metadata(new Document("type", "jpg"));
-        try (GridFSUploadStream uploadStream = gridFSBucket.openUploadStream(fileNameINDB + ".jpg", options)) {
-            // Writes file data to the GridFS upload stream
-            uploadStream.write(data);
-            uploadStream.flush();
-            // Prints the "_id" value of the uploaded file
-            System.out.println("The file id of the uploaded file is: " + uploadStream.getObjectId().toHexString());
-// Prints a message if any exceptions occur during the upload process
-        } catch (Exception e) {
-            System.err.println("The file upload failed: " + e);
-        }
-        Bson query = Filters.eq("metadata.type", "jpg");
-        Bson sort = Sorts.ascending("filename");
-// Retrieves 5 documents in the bucket that match the filter and prints metadata
-        gridFSBucket.find(query)
-                .sort(sort)
-                .limit(5)
-                .forEach(gridFSFile -> System.out.println(gridFSFile));
-        // Now you can work with the 'database' object to perform CRUD operations.
-        // Don't forget to close the MongoClient when you're done.
-        mongoClient.close();
     }
 }
