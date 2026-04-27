@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.app.service.grpc";
+
+package snapshot;
+
+service SnapshotService {
+  // Наш единственный gRPC метод
+  rpc UploadSnapShot (SnapshotRequest) returns (SnapshotResponse);
+}
+
+message SnapshotRequest {
+  string playerName = 1;
+  string fileName = 2;
+  bytes data = 3; // Бинарные данные скриншота
+}
+
+message SnapshotResponse {
+  string message = 1;
+  bool success = 2;
+}
