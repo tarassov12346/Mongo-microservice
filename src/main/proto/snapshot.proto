@@ -13,7 +13,13 @@ service SnapshotService {
 
   // Новый метод для получения байтов из Mongo
   rpc DownloadBytes (DownloadRequest) returns (DownloadResponse);
+  // НОВЫЙ метод для сохранения игры
+  rpc SaveGame (SaveGameRequest) returns (SnapshotResponse);
+  // Метод для загрузки игры (Restart)
+  rpc GetSavedGame (GetSavedGameRequest) returns (GetSavedGameResponse);
 }
+
+
 
 message SnapshotRequest {
   string playerName = 1;
@@ -39,4 +45,22 @@ message DownloadRequest {
 
 message DownloadResponse {
   bytes data = 1;
+}
+
+message SaveGameRequest {
+  string playerName = 1;
+  int32 playerScore = 2;
+  // char[][] превращаем в список строк
+  repeated string rows = 3;
+}
+
+message GetSavedGameRequest {
+  string playerName = 1;
+}
+
+message GetSavedGameResponse {
+  bool found = 1;
+  string playerName = 2;
+  int32 playerScore = 3;
+  repeated string rows = 4;
 }
