@@ -5,10 +5,11 @@ import com.app.service.grpc.*;             // Импорт сгенериров�
 import io.grpc.stub.StreamObserver;       // Импорт для стримов gRPC
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.lognet.springboot.grpc.GRpcService;
+import net.devh.boot.grpc.server.service.GrpcService;
+
 
 @Slf4j                    // Чтобы заработал 'log'
-@GRpcService               // Чтобы Spring увидел сервис
+@GrpcService             // Чтобы Spring увидел сервис
 @RequiredArgsConstructor   // Чтобы инициализировался daoMongoService
 public class SnapshotGrpcService extends SnapshotServiceGrpc.SnapshotServiceImplBase{
     private final DaoMongoService daoMongoService;
