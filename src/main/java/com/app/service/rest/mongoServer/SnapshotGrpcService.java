@@ -2,6 +2,7 @@ package com.app.service.rest.mongoServer;
 
 import com.app.service.rest.mongoServer.daoservice.DaoMongoService;
 import com.app.service.grpc.*;             // Импорт сгенерированных gRPC классов
+import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;       // Импорт для стримов gRPC
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,4 +41,24 @@ public class SnapshotGrpcService extends SnapshotServiceGrpc.SnapshotServiceImpl
             responseObserver.onError(e);
         }
     }
+    @Override
+    public void uploadMugShot(MugShotRequest request, StreamObserver<SnapshotResponse> responseObserver) {
+        daoMongoService.loadMugShotIntoMongodb(request.getPlayerName(), request.getData().toByteArray());
+
+        responseObserver.onNext(SnapshotResponse.newBuilder().setSuccess(true).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void downloadBytes(DownloadRequest request, StreamObserver<DownloadResponse> responseObserver) {
+        byte[] data = daoMongoService.loadByteArrayFromMongodb(request.getPlayerName(), request.getFileName());
+
+        DownloadResponse response = DownloadResponse.newBuilder()
+                .setData(ByteString.copyFrom(data))
+                .build();
+
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
 }

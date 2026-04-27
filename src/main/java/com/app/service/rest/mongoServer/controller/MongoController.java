@@ -57,21 +57,4 @@ public class MongoController {
     public void doDeleteImage(@RequestParam String playerName, @RequestParam String fileName) {
         CompletableFuture.runAsync(() -> daoMongoService.cleanImageMongodb(playerName, fileName));
     }
-
-    @GetMapping("/bytes")
-    public byte[] loadByteArrayFromMongodb(@RequestParam String playerName, @RequestParam String fileName) {
-        // Возвращаем данные синхронно, так как клиент их ждет
-        return daoMongoService.loadByteArrayFromMongodb(playerName, fileName);
-    }
-
-    @PostMapping("/mugShot")
-    public void mugShotSave(@RequestParam String playerName, @RequestBody byte[] data) {
-        CompletableFuture.runAsync(() -> daoMongoService.loadMugShotIntoMongodb(playerName, data));
-    }
-
-    @PostMapping("/snapShot")
-    public void snapShotSave(@RequestParam String playerName, @RequestParam String fileName, @RequestBody byte[] data) {
-        // Самая тяжелая операция (запись байтов) теперь не тормозит основной сервис
-        CompletableFuture.runAsync(() -> daoMongoService.loadSnapShotIntoMongodb(playerName, fileName, data));
-    }
 }

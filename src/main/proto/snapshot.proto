@@ -8,6 +8,11 @@ package snapshot;
 service SnapshotService {
   // Наш единственный gRPC метод
   rpc UploadSnapShot (SnapshotRequest) returns (SnapshotResponse);
+  // Новый метод для MugShot (фото профиля)
+  rpc UploadMugShot (MugShotRequest) returns (SnapshotResponse);
+
+  // Новый метод для получения байтов из Mongo
+  rpc DownloadBytes (DownloadRequest) returns (DownloadResponse);
 }
 
 message SnapshotRequest {
@@ -19,4 +24,19 @@ message SnapshotRequest {
 message SnapshotResponse {
   string message = 1;
   bool success = 2;
+}
+// --- ТЕБЕ НУЖНО ДОБАВИТЬ ЭТОТ БЛОК НИЖЕ ---
+
+message MugShotRequest {
+  string playerName = 1;
+  bytes data = 2;
+}
+
+message DownloadRequest {
+  string playerName = 1;
+  string fileName = 2;
+}
+
+message DownloadResponse {
+  bytes data = 1;
 }
