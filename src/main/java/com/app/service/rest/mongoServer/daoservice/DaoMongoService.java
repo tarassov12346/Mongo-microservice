@@ -14,7 +14,7 @@ public interface DaoMongoService {
 
     void cleanSavedGameMongodb(String playername);
 
-    void loadSavedGameIntoMongodb(SavedGame savedGame, String playerName);
+    SavedGame loadSavedGameIntoMongodb(SavedGame savedGame, String playerName);
 
     SavedGame loadSavedGameFromMongodb(String playerName);
 

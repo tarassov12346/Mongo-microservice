@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 
 @RestController
@@ -17,10 +18,12 @@ import java.util.concurrent.CompletableFuture;
 public class MongoController {
 
     private final DaoMongoService daoMongoService;
+    private final Executor virtualThreadExecutor; // Внедряем наш пул виртуальных потоков
 
     @DeleteMapping("/delete")
     public void doDeleteGame(@RequestParam String playerName) {
-        CompletableFuture.runAsync(() -> daoMongoService.cleanSavedGameMongodb(playerName));
+        // Передаем пул вторым аргументом
+        CompletableFuture.runAsync(() -> daoMongoService.cleanSavedGameMongodb(playerName), virtualThreadExecutor);
     }
 
     @PostMapping("/prepare")
@@ -29,11 +32,11 @@ public class MongoController {
             if (!daoMongoService.isImageFilePresentInMongoDB(playerName)) {
                 daoMongoService.prepareMongoDBForNewPLayer(playerName);
             }
-        });
+        }, virtualThreadExecutor); // И сюда
     }
 
     @DeleteMapping("/delete_image")
     public void doDeleteImage(@RequestParam String playerName, @RequestParam String fileName) {
-        CompletableFuture.runAsync(() -> daoMongoService.cleanImageMongodb(playerName, fileName));
+        CompletableFuture.runAsync(() -> daoMongoService.cleanImageMongodb(playerName, fileName), virtualThreadExecutor); // И сюда
     }
 }

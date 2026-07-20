@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
@@ -50,7 +51,7 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
-    @CacheEvict(value = "items_list", allEntries = true)
+    @CacheEvict(value = "items_list", key = "#playerName + #fileName + '_img'") // ✅ Удалит только эту картинку
     public void cleanImageMongodb(String playerName, String fileName) {
         GridFSBucket bucket = getGridFS();
         bucket.find(Filters.eq("filename", playerName + fileName + ".jpg"))
@@ -64,10 +65,9 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
-    @CacheEvict(value = "items_list", key = "#playerName + '_save'")
-    public void loadSavedGameIntoMongodb(SavedGame savedGame, String playerName) {
+    @CachePut(value = "items_list", key = "#playerName + '_save'")
+    public SavedGame loadSavedGameIntoMongodb(SavedGame savedGame, String playerName) {
         String key = playerName + "SavedGame";
-        // Вместо удаления и вставки используем replace + upsert (атомарно)
         Document doc = Document.parse(new Gson().toJson(savedGame));
         doc.put("name", key);
 
@@ -76,7 +76,10 @@ public class DaoMongo implements DaoMongoService {
                 doc,
                 new ReplaceOptions().upsert(true)
         );
+
+        return savedGame; // Нам нужно вернуть объект, чтобы Spring положил его в кэш!
     }
+
 
     @Override
     @Cacheable(value = "items_list", key = "#playerName + '_save'")
@@ -87,11 +90,15 @@ public class DaoMongo implements DaoMongoService {
     }
 
     @Override
+    // Выбивает кэш конкретного скриншота
+    @CacheEvict(value = "items_list", key = "#playerName + #fileName + '_img'")
     public void loadSnapShotIntoMongodb(String playerName, String fileName, byte[] data) {
         uploadToGridFS(playerName + fileName + ".jpg", data);
     }
 
     @Override
+    // Выбивает кэш аватара (когда fileName при скачивании равен "mugShot")
+    @CacheEvict(value = "items_list", key = "#playerName + 'mugShot_img'")
     public void loadMugShotIntoMongodb(String playerName, byte[] data) {
         uploadToGridFS(playerName + ".jpg", data);
     }
