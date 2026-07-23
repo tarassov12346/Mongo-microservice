@@ -10,6 +10,7 @@ import com.mongodb.client.gridfs.GridFSBuckets;
 import com.mongodb.client.gridfs.model.GridFSUploadOptions;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.ReplaceOptions;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
@@ -35,32 +36,36 @@ public class DaoMongo implements DaoMongoService {
     @Value("${mongoPrepareShotsPath}")
     private String mongoPrepareShotsPath;
 
-    // Централизованный доступ к БД и бакету
-    private MongoDatabase getDatabase() {
-        return mongoClient.getDatabase("shopDB");
-    }
+    // Тяжелые объекты драйвера, которые мы теперь кэшируем в памяти Java
+    private MongoDatabase database;
+    private GridFSBucket gridFSBucket;
 
-    private GridFSBucket getGridFS() {
-        return GridFSBuckets.create(getDatabase());
+    // Выполняется ровно один раз при старте приложения
+    @PostConstruct
+    public void init() {
+        log.info("🎯 Однократная инициализация соединений MongoDB и GridFSBucket");
+        this.database = mongoClient.getDatabase("shopDB");
+        this.gridFSBucket = GridFSBuckets.create(database);
     }
 
     @Override
     public boolean isSavedGamePresentInMongoDB(String fileName) {
-        return getDatabase().getCollection("saved_games")
+        // Используем готовое поле database вместо вызова метода
+        return database.getCollection("saved_games")
                 .find(Filters.eq("name", fileName)).first() != null;
     }
 
     @Override
-    @CacheEvict(value = "items_list", key = "#playerName + #fileName + '_img'") // ✅ Удалит только эту картинку
+    @CacheEvict(value = "items_list", key = "#playerName + #fileName + '_img'")
     public void cleanImageMongodb(String playerName, String fileName) {
-        GridFSBucket bucket = getGridFS();
-        bucket.find(Filters.eq("filename", playerName + fileName + ".jpg"))
-                .forEach(file -> bucket.delete(file.getId()));
+        // Используем готовое поле gridFSBucket
+        gridFSBucket.find(Filters.eq("filename", playerName + fileName + ".jpg"))
+                .forEach(file -> gridFSBucket.delete(file.getId()));
     }
 
     @Override
     public void cleanSavedGameMongodb(String playerName) {
-        getDatabase().getCollection("saved_games")
+        database.getCollection("saved_games")
                 .deleteMany(Filters.eq("name", playerName + "SavedGame"));
     }
 
@@ -71,46 +76,43 @@ public class DaoMongo implements DaoMongoService {
         Document doc = Document.parse(new Gson().toJson(savedGame));
         doc.put("name", key);
 
-        getDatabase().getCollection("saved_games").replaceOne(
+        database.getCollection("saved_games").replaceOne(
                 Filters.eq("name", key),
                 doc,
                 new ReplaceOptions().upsert(true)
         );
 
-        return savedGame; // Нам нужно вернуть объект, чтобы Spring положил его в кэш!
+        return savedGame;
     }
-
 
     @Override
     @Cacheable(value = "items_list", key = "#playerName + '_save'")
     public SavedGame loadSavedGameFromMongodb(String playerName) {
-        Document doc = getDatabase().getCollection("saved_games")
+        Document doc = database.getCollection("saved_games")
                 .find(Filters.eq("name", playerName + "SavedGame")).first();
         return doc != null ? new Gson().fromJson(doc.toJson(), SavedGame.class) : null;
     }
 
     @Override
-    // Выбивает кэш конкретного скриншота
     @CacheEvict(value = "items_list", key = "#playerName + #fileName + '_img'")
     public void loadSnapShotIntoMongodb(String playerName, String fileName, byte[] data) {
         uploadToGridFS(playerName + fileName + ".jpg", data);
     }
 
     @Override
-    // Выбивает кэш аватара (когда fileName при скачивании равен "mugShot")
     @CacheEvict(value = "items_list", key = "#playerName + 'mugShot_img'")
     public void loadMugShotIntoMongodb(String playerName, byte[] data) {
         uploadToGridFS(playerName + ".jpg", data);
     }
 
     private void uploadToGridFS(String fullFileName, byte[] data) {
-        // Эта строка покажет, какой поток выполняет тяжелую запись
         log.info("🚀 Запись в Mongo. Поток: {}", Thread.currentThread());
         GridFSUploadOptions options = new GridFSUploadOptions()
                 .chunkSizeBytes(1048576)
                 .metadata(new Document("type", "jpg"));
 
-        try (var uploadStream = getGridFS().openUploadStream(fullFileName, options)) {
+        // Используем готовое поле gridFSBucket, убирая лишние аллокации
+        try (var uploadStream = gridFSBucket.openUploadStream(fullFileName, options)) {
             uploadStream.write(data);
             log.info("📸 Файл {} успешно сохранен. ID: {}", fullFileName, uploadStream.getObjectId());
         } catch (Exception e) {
@@ -123,7 +125,8 @@ public class DaoMongo implements DaoMongoService {
     public byte[] loadByteArrayFromMongodb(String playerName, String fileName) {
         String finalName = fileName.equals("mugShot") ? playerName + ".jpg" : playerName + fileName + ".jpg";
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            getGridFS().downloadToStream(finalName, bos);
+            // Используем готовое поле gridFSBucket
+            gridFSBucket.downloadToStream(finalName, bos);
             return bos.toByteArray();
         } catch (Exception e) {
             log.error("❌ Ошибка скачивания {}: {}", finalName, e.getMessage());
@@ -140,7 +143,7 @@ public class DaoMongo implements DaoMongoService {
 
     @Override
     public boolean isImageFilePresentInMongoDB(String fileName) {
-        return getDatabase().getCollection("fs.files")
+        return database.getCollection("fs.files")
                 .find(Filters.eq("filename", fileName + ".jpg")).first() != null;
     }
 
