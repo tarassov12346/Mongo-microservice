@@ -17,33 +17,35 @@ RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests
 # ==============================================================================
 # Этап 2: Финальный высокопроизводительный рантайм (Ultra-Low Latency GridFS)
 # ==============================================================================
-# Переходим на легковесный JRE 21 Alpine
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Копируем собранный JAR из этапа сборки
+# Копируем собранный JAR
 COPY --from=build /app/target/Mongo-microservice-1.0-SNAPSHOT.jar app.jar
 
-# СОХРАНЯЕМ И КОРРЕКТИРУЕМ КОСТЫЛЬ С ПАПКАМИ И БЕЗОПАСНОСТЬЮ:
-# Создаем директории для скриншотов (как в твоем старом файле) и создаем не-root пользователя.
-# Дополнительно передаем права (chown) на эти папки пользователю spring, чтобы он мог туда писать.
-RUN mkdir -p /src/main/resources/static/shots /src/main/resources/static/mongoprepareshots \
-    && addgroup -S spring && adduser -S spring -G spring \
-    && chown -R spring:spring /src/main/resources/static/shots /src/main/resources/static/mongoprepareshots
+# Создаем пользователя spring
+RUN addgroup -S spring && adduser -S spring -G spring
+
+# 🛠 СОЗДАЕМ ЛОКАЛЬНЫЕ ПАПКИ И КОПИРУЕМ СТАТИКУ ИЗ ИСХОДНИКОВ
+# Создаем папки shots и mongoPrepareShots прямо в рабочей директории /app
+RUN mkdir -p shots mongoPrepareShots
+
+# Копируем оригинальные картинки-заглушки в созданную папку
+COPY --from=build /app/src/main/resources/static/mongoPrepareShots/ mongoPrepareShots/
+
+# Выдаем права пользователю spring
+RUN chown -R spring:spring shots mongoPrepareShots
 
 # Переключаемся на безопасного пользователя
 USER spring:spring
 
-# ОТКРЫВАЕМ ТОЧНЫЕ ПОРТЫ ИЗ PROPERTIES:
-# 3333 - HTTP REST порт административных команд
-# 6565 - Высокоскоростной gRPC сервер для стриминга тяжелой графики движку
 EXPOSE 3333 6565
 
-# Точка входа с поддержкой лимитов Docker, ZGC для Loom и флагом трассировки пиннинга
 ENTRYPOINT ["java", \
             "-XX:+UseContainerSupport", \
             "-XX:+UseZGC", \
             "-Djdk.tracePinnedThreads=short", \
             "-jar", "app.jar", \
             "--spring.config.name=mongo-server"]
+
 
