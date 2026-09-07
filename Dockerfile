@@ -41,11 +41,13 @@ USER spring:spring
 
 EXPOSE 3333 6565
 
+# Передаем управление конфигурацией нашему докер-файлу свойств
 ENTRYPOINT ["java", \
             "-XX:+UseContainerSupport", \
             "-XX:+UseZGC", \
             "-Djdk.tracePinnedThreads=short", \
             "-jar", "app.jar", \
-            "--spring.config.name=mongo-server"]
+            "--spring.config.name=mongo-server-docker"]
+
 
 
