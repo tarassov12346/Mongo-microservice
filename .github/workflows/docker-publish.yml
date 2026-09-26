@@ -44,7 +44,7 @@ jobs:
           
           echo "🚀 Найден активный Codespace: $CODESPACE_NAME. Отправляем команду обновления..."
           
-          # Подключаемся по SSH, переходим в папку полигона, стягиваем новый образ и перезапускаем mongodb
-          gh cs ssh -c "$CODESPACE_NAME" -- "cd /workspaces/PWD-POLYGONE && docker compose pull mongodb && docker compose up -d mongodb"
+          # Подключаемся по SSH, переходим в папку полигона, стягиваем новый Java-образ и перезапускаем mongo-service
+          gh cs ssh -c "$CODESPACE_NAME" -- "cd /workspaces/PWD-POLYGONE && docker compose pull mongo-service && docker compose up -d mongo-service"
         env:
           GH_TOKEN: ${{ secrets.MICROSERVICES_DEPLOY_TOKEN }}
